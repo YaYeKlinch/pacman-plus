@@ -3,204 +3,43 @@ from time import sleep
 import random
 from tkinter import Tk, Canvas
 
-FOOD_POINT = 5
-GHOST_STEP = 5
-PENALTY = 9
-GHOST_PACMAN_PROFIT = 2
-INF = 99999999999999999999999999999999999999999999999
-BLOCK_SIZE = 20
-PACMAN_SIZE = 3
-SPEED_OF_MOVES = 0.1  # Час затримки між кроками
-SEARCH_DEPTH = 10  # Глибина пошуку стратегій
-NUMBER_OF_FOOD = 0  # К-сть точок на рівні, які треба з'їсти
-eated_food = 0  # К-сть з'їдених точок
-ghost_step_number = 0  # К-сть зроблених кроків привидами
-map = []  # Поле
-WIDTH, LENGTH = 21, 27  # Розміри поля
+map = []
+SPEED_OF_MOVES = 0.1
+WIDTH, LENGTH = 21, 25
 levels = [
     'level_1.txt',
-    ##'level_2.txt',    #    На цьому рівні пакмен точно програє
+    #'level_2.txt',
     'level_3.txt',
     'level_4.txt',
     'level_5.txt',
 ]
-pacman = (0, 0)  # Координати пакмена
-ghosts = []  # Координати привидів
 
-tk = Tk()  # Діч для графіки
-tk.title('Pacman')
-tk.resizable(0, 0)  # заборона зміни розміру
-tk.wm_attributes('-topmost', 1)  # розміщуємо вікно зверху
+GHOST_STEP = 5
+ghost_step_number = 0
+PENALTY = 5
+GHOST_PACMAN_PROFIT = 2
+BLOCK_SIZE = 20
+PACMAN_SIZE = 3
+SEARCH_DEPTH = 5
+NUMBER_OF_FOOD = 0
+FOOD_POINT = 5
+eated_food = 0
+
+
+
+pacman = (0, 0)
+ghosts = []
+
+tk = Tk()
+tk.title('Pacman PLUS')
+tk.resizable(0, 0)
+tk.wm_attributes('-topmost', 1)
 canvas = Canvas(tk, width=WIDTH * BLOCK_SIZE, height=LENGTH * BLOCK_SIZE, highlightthickness=0)
 canvas.pack()
 tk.update()
 
 
-def stepVisualization(pcmn, sprts):  # Візуалізація поля з пакменом та привидами
-    canvas.delete("all")
-    canvas.create_rectangle(  # Заливаємо повністю поверхню
-        0, 0, WIDTH * BLOCK_SIZE, LENGTH * BLOCK_SIZE,
-        outline='#fb0', fill='#f50'
-    )
-    for x in range(WIDTH):
-        for y in range(LENGTH):
-            if map[y][x] == '.':  # Порожня клітинка
-                canvas.create_rectangle(
-                    x * BLOCK_SIZE, y * BLOCK_SIZE, (x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE,
-                    fill='#4d443f', outline='black'
-                )
-            elif map[y][x] == 'X':  # Малюємо стіну
-                canvas.create_rectangle(
-                    x * BLOCK_SIZE, y * BLOCK_SIZE, (x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE,
-                    fill='black', outline='blue'
-                )
-            elif map[y][x] == '1':
-                canvas.create_oval(  # Малюємо ціль
-                    x * BLOCK_SIZE + 2 * PACMAN_SIZE, y * BLOCK_SIZE + 2 * PACMAN_SIZE,
-                    (x + 1) * BLOCK_SIZE - 2 * PACMAN_SIZE, (y + 1) * BLOCK_SIZE - 2 * PACMAN_SIZE,
-                    fill='orange', outline='green'
-                )
-            else:
-                pass
-
-    canvas.create_arc(  # Малюємо пакмена
-        pcmn[0] * BLOCK_SIZE + PACMAN_SIZE, pcmn[1] * BLOCK_SIZE + PACMAN_SIZE,
-        (pcmn[0] + 1) * BLOCK_SIZE - PACMAN_SIZE, (pcmn[1] + 1) * BLOCK_SIZE - PACMAN_SIZE,
-        start=30, extent=300, fill='yellow', outline='yellow'
-    )
-
-    colors = ['blue', 'pink', 'gray', ]
-    for i in range(len(sprts)):
-        canvas.create_arc(  # Малюємо привида
-            sprts[i][0] * BLOCK_SIZE + PACMAN_SIZE, sprts[i][1] * BLOCK_SIZE + PACMAN_SIZE,
-            (sprts[i][0] + 1) * BLOCK_SIZE - PACMAN_SIZE, (sprts[i][1] + 1) * BLOCK_SIZE - PACMAN_SIZE,
-            start=300, extent=300, fill=colors[i], outline=colors[i]
-        )
-
-    tk.update()
-    sleep(SPEED_OF_MOVES)
-
-
-
-
-
-def minimaxAlgorithm(position, depth=0, maximizing=True, score=0, prev_pos=()):
-    #   Мінімаксний алгоритм пошуку оптимального шляху
-
-    stop_game = False
-    if prev_pos and depth % 2 == 0:  # Перевірка, чи з'їдають привиди пакмена
-        for i in range(len(position[1])):
-            if position[1][i] == position[0] or \
-                    (position[1][i] == prev_pos[0] and prev_pos[1][i] == position[0]):
-                stop_game = True
-                score -= PENALTY ** (SEARCH_DEPTH - depth)
-
-    if depth % 2 == 0:  # І пакмен, і привиди зробили крок
-        prev_pos = position
-
-    #   Пакмен з'їдає точку
-    if map[position[0][1]][position[0][0]] == '1':
-        score += FOOD_POINT
-        if eated_food + score // FOOD_POINT >= NUMBER_OF_FOOD:
-            #   Пакмен з'їв усі точки
-            score += FOOD_POINT ** (SEARCH_DEPTH - depth)
-            stop_game = True
-
-    if depth == SEARCH_DEPTH or stop_game:
-        return (score, position[0], position[1])
-
-    if maximizing:  # This is pacman's move
-        #   Можливі ходи пакмена та рахунок, який він може отримати
-        pac_benefit = {move: minimaxAlgorithm((move, position[1]), depth + 1, False, score, prev_pos)[0] \
-                       for move in freeBlocksSearcher(position[0])}
-        max_benefit = max(pac_benefit.values())
-        best_strategies = list(filter(lambda x: pac_benefit[x] == max_benefit, pac_benefit.keys()))
-        pacman_next = random.choice(best_strategies)
-        return (max_benefit, pacman_next, position[1])
-    else:  # This is spirits move
-        #   Заповнюємо всі можливі комбінації переміщень привидів
-        sp_pos_moves = [[]]
-        for spirit in position[1]:
-            buf = []
-            for move in freeBlocksSearcher(spirit):
-                buf += [m + [move] for m in sp_pos_moves]
-            sp_pos_moves = buf
-        #   Переміщення привидів та рахунок, який можна здобути
-        sp_benefit = {tuple(move): minimaxAlgorithm((position[0], move), depth + 1, True, score, prev_pos)[0] \
-                      for move in sp_pos_moves}
-        min_benefit = min(sp_benefit.values())
-        best_strategies = list(filter(lambda x: sp_benefit[x] == min_benefit, sp_benefit.keys()))
-        sp_next = random.choice(best_strategies)
-        return (min_benefit, position[0], sp_next)
-    return (score, pacman, ghosts)
-
-
-def alphaBetaAlgorithm(position, depth=0, maximizing=True, score=0, prev_pos=(), alpha=-INF, beta=INF):
-    #   Альфа-бета відтинання
-
-    stop_game = False
-    if prev_pos and depth % 2 == 0:  # Перевірка, чи з'їдають привиди пакмена
-        for i in range(len(position[1])):
-            if position[1][i] == position[0] or \
-                    (position[1][i] == prev_pos[0] and prev_pos[1][i] == position[0]):
-                stop_game = True
-                score -= PENALTY ** (SEARCH_DEPTH - depth)
-
-    if depth % 2 == 0:  # І пакмен, і привиди зробили крок
-        prev_pos = position
-
-    #   Пакмен з'їдає точку
-    if map[position[0][1]][position[0][0]] == '1':
-        score += FOOD_POINT
-        if eated_food + score // FOOD_POINT >= NUMBER_OF_FOOD:
-            #   Пакмен з'їв усі точки
-            score += FOOD_POINT ** (SEARCH_DEPTH - depth)
-            stop_game = True
-
-    if depth == SEARCH_DEPTH or stop_game:
-        return (score, position[0], position[1])
-
-    if maximizing:  # This is pacman's move
-        max_eval = -INF
-        pac_benefit = {}  # Можливі комбінації
-        for move in freeBlocksSearcher(position[0]):
-            ev = alphaBetaAlgorithm((move, position[1]), depth + 1, False, score, prev_pos, alpha, beta)[0]
-            pac_benefit[move] = ev
-            max_eval = max(max_eval, ev)
-            alpha = max(alpha, ev)
-            if beta <= alpha:
-                break
-
-        max_benefit = max(pac_benefit.values())
-        best_strategies = list(filter(lambda x: pac_benefit[x] == max_benefit, pac_benefit.keys()))
-        pacman_next = best_strategies[0] if len(best_strategies) != len(pac_benefit) else random.choice(best_strategies)
-        return (max_eval, pacman_next, position[1])
-
-    else:  # This is spirits move
-        sp_pos_moves = [[]]
-        for spirit in position[1]:
-            buf = []
-            for move in freeBlocksSearcher(spirit):
-                buf += [m + [move] for m in sp_pos_moves]
-            sp_pos_moves = buf
-
-        min_eval = INF
-        sp_benefit = {}  # Можливі комбінації
-        for move in sp_pos_moves:
-            ev = alphaBetaAlgorithm((position[0], move), depth + 1, True, score, prev_pos, alpha, beta)[0]
-            sp_benefit[tuple(move)] = ev
-            min_eval = min(min_eval, ev)
-            beta = min(beta, ev)
-            if beta <= alpha:
-                break
-
-        min_benefit = min(sp_benefit.values())
-        best_strategies = list(filter(lambda x: sp_benefit[x] == min_benefit, sp_benefit.keys()))
-        sp_next = best_strategies[0] if len(best_strategies) != len(sp_benefit) else random.choice(best_strategies)
-        return (min_eval, position[0], sp_next)
-    return (score, pacman, ghosts)
-
-def mapReader(inp):  # Зчитує поле з файлу
+def mapReader(inp):
     global map
     global WIDTH
     global LENGTH
@@ -213,7 +52,7 @@ def mapReader(inp):  # Зчитує поле з файлу
     LENGTH = len(map)
 
 
-def elementReader():  # Шукає координати пакмена та привидів
+def gameElementsReader():
     global pacman
     global ghosts
     global NUMBER_OF_FOOD
@@ -233,27 +72,163 @@ def elementReader():  # Шукає координати пакмена та пр
                 ghosts.append((x, y))
 
 
-def freeBlocksSearcher(point):  # Шукає всі досяжні вершини із заданої точки
-    next_nodes = [(point[0] + 1, point[1]), (point[0] - 1, point[1]),
-                  (point[0], point[1] + 1), (point[0], point[1] - 1)]
-    return [node for node in next_nodes if map[node[1]][node[0]] != 'X']
-#######################################################################################
-isPacmanAlive = True
+def stepVisualization(pcmn, sprts):
+    canvas.delete("all")
+    canvas.create_rectangle(
+        0, 0, WIDTH * BLOCK_SIZE, LENGTH * BLOCK_SIZE,
+        outline='#fb0', fill='#f50'
+    )
+    for x in range(WIDTH):
+        for y in range(LENGTH):
+            if map[y][x] == '.':
+                canvas.create_rectangle(
+                    x*BLOCK_SIZE, y*BLOCK_SIZE, (x+1)*BLOCK_SIZE, (y+1)*BLOCK_SIZE,
+                    fill='#4d443f', outline='black'
+                )
+            elif map[y][x] == 'X':
+                canvas.create_rectangle(
+                    x*BLOCK_SIZE, y*BLOCK_SIZE, (x+1)*BLOCK_SIZE, (y+1)*BLOCK_SIZE,
+                    fill='black', outline='blue'
+                )
+            elif map[y][x] == '1':
+                canvas.create_oval(
+                    x * BLOCK_SIZE + 2 * PACMAN_SIZE, y * BLOCK_SIZE + 2 * PACMAN_SIZE,
+                    (x+1) * BLOCK_SIZE - 2 * PACMAN_SIZE, (y + 1) * BLOCK_SIZE - 2 * PACMAN_SIZE,
+                    fill='orange', outline='green'
+                )
+            else:
+                pass
+
+    canvas.create_arc( #малюємо пакмена
+        pcmn[0] * BLOCK_SIZE + PACMAN_SIZE, pcmn[1] * BLOCK_SIZE + PACMAN_SIZE,
+        (pcmn[0]+1) * BLOCK_SIZE - PACMAN_SIZE, (pcmn[1] + 1) * BLOCK_SIZE - PACMAN_SIZE,
+        start=30, extent=300, fill='yellow', outline='yellow'
+    )
+
+    colors = ['blue', 'pink', 'gray', ]
+    for i in range(len(sprts)):
+        canvas.create_arc( #малюємо привида
+            sprts[i][0] * BLOCK_SIZE + PACMAN_SIZE, sprts[i][1] * BLOCK_SIZE + PACMAN_SIZE,
+            (sprts[i][0]+1) * BLOCK_SIZE - PACMAN_SIZE, (sprts[i][1] + 1) * BLOCK_SIZE - PACMAN_SIZE,
+            start=300, extent=300, fill=colors[i], outline=colors[i]
+        )
+
+    tk.update()
+    sleep(SPEED_OF_MOVES)
+
+def bfs(spirit, trgt):
+    paths = [[(spirit[0], spirit[1])]]
+    visited = [(spirit[0], spirit[1])]
+    while paths:
+        buf_paths = []
+        for path in paths:
+            if path[-1] == trgt:
+                return path
+        for path in paths:
+            next_node = [(path[-1][0]+1, path[-1][1]), (path[-1][0]-1, path[-1][1]),
+                (path[-1][0], path[-1][1]+1), (path[-1][0], path[-1][1]-1)]
+            for node in next_node:
+                if node in visited:
+                    continue
+                if map[node[1]][node[0]] == 'X':
+                    continue
+                visited += [node]
+                buf_paths.append(path+[node])
+
+        paths = buf_paths
+
+    return spirit
+
+
+def freeBlocksSearcher(point):
+    
+    paths = [[point]]
+    for _ in range(SEARCH_DEPTH):
+        buf_paths = []
+        for path in paths:
+            next_nodes = [(path[-1][0]+1, path[-1][1]), (path[-1][0]-1, path[-1][1]),
+                (path[-1][0], path[-1][1]+1), (path[-1][0], path[-1][1]-1)]
+            for node in next_nodes:
+                if map[node[1]][node[0]] == 'X':
+                    continue
+                buf_paths.append(path+[node])
+            
+            paths = buf_paths
+    return [tuple(p) for p in paths]
+
+def makeStep():
+    pacman_possible_moves = freeBlocksSearcher(pacman)
+    spirits_possible_moves = [freeBlocksSearcher(spirit) for spirit in ghosts]
+
+    pac_benefit = {}
+    for path in pacman_possible_moves:
+        pac_benefit[path] = 0
+        for point in path:
+            if map[point[1]][point[0]] == '1':
+                pac_benefit[path] += FOOD_POINT
+        if eated_food + pac_benefit[path]//FOOD_POINT >= NUMBER_OF_FOOD:
+            pac_benefit[path] += FOOD_POINT ** 10
+
+        for spirit_possible_moves in spirits_possible_moves:
+            for sp_path in spirit_possible_moves:
+                for i in range(1, len(sp_path)):
+                    if path[i] == sp_path[i]:
+                        pac_benefit[path] -= PENALTY ** (SEARCH_DEPTH - i)
+                        break
+                for i in range(2, len(sp_path)):
+                    if (path[i]==sp_path[i-1] and path[i-1]==sp_path[i]):
+                        pac_benefit[path] -= PENALTY ** (SEARCH_DEPTH - i)
+                        break
+    max_benefit = max(pac_benefit.values())
+    best_strategies = list(filter(lambda x: pac_benefit[x]==max_benefit, pac_benefit.keys()))
+    pacman_next = random.choice(best_strategies)
+
+    spirits_next = []
+    use_different_strategy = False
+    for spirit_possible_moves in spirits_possible_moves:
+        spirit_benefit = {}
+        use_different_strategy = False if use_different_strategy else True
+        if use_different_strategy:
+            global ghost_step_number
+            ghost_step_number += 1
+            if ghost_step_number >= GHOST_STEP:
+                spirits_next.append(random.choice(spirit_possible_moves)[1])
+                ghost_step_number = 0
+                continue
+            for path in spirit_possible_moves:
+                spirit_benefit[path] = 0
+                for pacman_path in pacman_possible_moves:
+                    for i in range(1, len(pacman_path)):
+                        if path[i] == pacman_path[i]:
+                            spirit_benefit[path] += GHOST_PACMAN_PROFIT ** (SEARCH_DEPTH - i)
+                            break
+                    for i in range(2, len(pacman_path)):
+                        if (path[i]==pacman_path[i-1] and path[i-1]==pacman_path[i]):
+                            spirit_benefit[path] += GHOST_PACMAN_PROFIT ** (SEARCH_DEPTH - i)
+                            break
+            max_profit = max(spirit_benefit.values())
+            best_strategies = list(filter(lambda x: spirit_benefit[x]==max_profit, spirit_benefit.keys()))
+            spirits_next.append(random.choice(best_strategies)[1])
+        else:
+            spirits_next.append(bfs(spirit_possible_moves[0][0], pacman)[1])
+
+    return pacman_next[1], spirits_next
+
+
+#######################################################################################  
+PAC_ALIVE = True
 for level in levels:
     mapReader(level)
-    elementReader()
+    gameElementsReader()
     eated_food = 0
 
-    if not isPacmanAlive:
+    if not PAC_ALIVE:
         sleep(2)
         break
-
+    
     stepVisualization(pacman, ghosts)
-    while isPacmanAlive:
-        f = alphaBetaAlgorithm
-        pacman_next = f((pacman, ghosts))[1]
-        spirits_next = f((pacman, ghosts), maximizing=False)[2]
-
+    while PAC_ALIVE:
+        pacman_next, spirits_next = makeStep()
         if map[pacman_next[1]][pacman_next[0]] == '1':
             eated_food += 1
             map[pacman_next[1]][pacman_next[0]] = '.'
@@ -261,12 +236,13 @@ for level in levels:
                 stepVisualization(pacman_next, ghosts)
                 sleep(2)
                 break
-
+        
         for i in range(len(spirits_next)):
             if pacman_next == spirits_next[i] or \
-                    (pacman_next == ghosts[i] and pacman == spirits_next[i]):
-                isPacmanAlive = False
+                (pacman_next == ghosts[i] and pacman == spirits_next[i]):
+                PAC_ALIVE = False
 
         pacman = pacman_next
         ghosts = spirits_next
         stepVisualization(pacman_next, spirits_next)
+
